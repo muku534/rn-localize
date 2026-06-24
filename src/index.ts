@@ -34,7 +34,7 @@ program
     'node_modules,**/*.test.*,**/*.spec.*'
   )
   .option('--dry-run', 'Preview output without writing any files', false)
-  .option('--no-comments', 'Omit source location comments from output JSON')
+  .option('--no-map', 'Omit source location map file')
   .option('--prefix <name>', 'Manually set key prefix for all keys')
   .option('--min-length <n>', 'Minimum string length to extract', '2')
   .option('--overwrite', 'Overwrite existing keys in output file instead of merging', false)
@@ -47,7 +47,7 @@ program
       importStatement: cmdOptions.import,
       ignore: cmdOptions.ignore.split(',').map((p: string) => p.trim()),
       dryRun: cmdOptions.dryRun,
-      noComments: !cmdOptions.comments, // commander negates --no-comments to .comments = false
+      noMap: !cmdOptions.map, // commander negates --no-map to .map = false
       prefix: cmdOptions.prefix,
       minLength: parseInt(cmdOptions.minLength, 10),
       overwrite: cmdOptions.overwrite,

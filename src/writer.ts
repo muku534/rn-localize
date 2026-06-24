@@ -127,9 +127,9 @@ export function writeOutput(extracted: ExtractedString[], options: ScanOptions):
 
   fs.writeFileSync(outputPath, JSON.stringify(finalData, null, 2) + '\n', 'utf-8');
 
-  // Write source map file (unless --no-comments)
-  if (!options.noComments) {
-    const mapPath = outputPath + '.map';
+  // Write source map file (unless --no-map)
+  if (!options.noMap) {
+    const mapPath = `${options.output}.map`;
     const sourceMap = buildSourceMap(extracted, process.cwd());
     fs.writeFileSync(mapPath, JSON.stringify(sourceMap, null, 2) + '\n', 'utf-8');
   }

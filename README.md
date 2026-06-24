@@ -55,7 +55,7 @@ npx rn-localize scan --rewrite --import "import i18n from '@/utils/i18n'"
 | `--import <statement>` | `import { t } from '../i18n'` | Import line to inject when rewriting |
 | `--ignore <patterns>` | `node_modules,**/*.test.*,**/*.spec.*` | Comma-separated glob patterns to ignore |
 | `--dry-run` | `false` | Preview output without writing any files |
-| `--no-comments` | `false` | Omit source location map file |
+| `--no-map` | `false` | Omit source location map file |
 | `--prefix <name>` | (auto from filename) | Manually set key prefix for all keys |
 | `--min-length <n>` | `2` | Minimum string length to extract |
 | `--overwrite` | `false` | Overwrite existing keys instead of merging |

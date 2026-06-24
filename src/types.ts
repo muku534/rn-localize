@@ -23,7 +23,7 @@ export interface ScanOptions {
   importStatement: string;
   ignore: string[];
   dryRun: boolean;
-  noComments: boolean;
+  noMap: boolean;
   prefix?: string;
   minLength: number;
   overwrite: boolean;
