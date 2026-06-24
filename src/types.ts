@@ -10,7 +10,7 @@ export interface ExtractedString {
   /** Column number */
   column: number;
   /** Type of AST node the string was extracted from */
-  type: 'jsx_text' | 'string_prop' | 'template_literal';
+  type: 'jsx_text' | 'string_prop' | 'template_literal' | 'string_literal';
   /** Prop name if type is 'string_prop', e.g. "placeholder", "title" */
   propName?: string;
 }

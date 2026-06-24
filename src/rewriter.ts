@@ -148,6 +148,23 @@ function rewriteSingleFile(
       path.replaceWith(tCall);
       hasReplacements = true;
     },
+
+    /**
+     * D) Bare String literals → t('key')
+     */
+    StringLiteral(path) {
+      const loc = path.node.loc;
+      if (!loc) return;
+
+      const locationKey = `${loc.start.line}:${loc.start.column}`;
+      const match = replacementMap.get(locationKey);
+      if (!match || match.type !== 'string_literal') return;
+
+      // Replace StringLiteral with t('key') call
+      const tCall = t.callExpression(t.identifier('t'), [t.stringLiteral(match.key)]);
+      path.replaceWith(tCall);
+      hasReplacements = true;
+    },
   });
 
   if (!hasReplacements) return;

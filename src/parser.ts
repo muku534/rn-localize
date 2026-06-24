@@ -34,6 +34,7 @@ const SKIP_PATTERNS: RegExp[] = [
   /^\s*$/,                  // Whitespace only
   /^[a-z_]+\.[a-z_]+$/,    // Looks like a key already (home.title)
   /^[A-Z_]+$/,              // Constants like SCREEN_NAME
+  /^[a-z0-9\-]+$/,          // Technical strings (e.g. 'window', 'dark-content', 'object', 'center')
 ];
 
 /**
@@ -215,14 +216,48 @@ export function parseFile(
       });
     },
 
-    /**
-     * Also check for StringLiteral nodes that are arguments to t() calls
-     * to count them as skipped (already localized).
-     */
     StringLiteral(path: NodePath<t.StringLiteral>) {
       if (isInsideTCall(path)) {
         skippedCount++;
+        return;
       }
+
+      // Skip if parent is JSXAttribute (handled by JSXAttribute visitor)
+      if (path.parentPath.isJSXAttribute()) return;
+
+      // Skip import/export declarations
+      if (path.parentPath.isImportDeclaration() || path.parentPath.isExportDeclaration()) return;
+      
+      // Skip ObjectMethod keys
+      if (path.parentPath.isObjectMethod() && path.parentPath.node.key === path.node) return;
+
+      // Skip object properties where the string is the KEY
+      if (path.parentPath.isObjectProperty() && path.parentPath.node.key === path.node) return;
+
+      // Skip require() calls
+      if (
+        path.parentPath.isCallExpression() &&
+        t.isIdentifier(path.parentPath.node.callee) &&
+        path.parentPath.node.callee.name === 'require'
+      ) return;
+
+      const raw = path.node.value;
+      if (shouldSkipString(raw, options.minLength)) return;
+      if (isInsideStyleSheet(path)) return;
+
+      const key = collisionTracker.resolve(
+        generateKey(raw, filePath, options.prefix),
+        raw
+      );
+
+      extracted.push({
+        raw,
+        key,
+        filePath,
+        line: path.node.loc?.start.line ?? 0,
+        column: path.node.loc?.start.column ?? 0,
+        type: 'string_literal',
+      });
     },
   });
 
