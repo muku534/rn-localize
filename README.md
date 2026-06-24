@@ -39,10 +39,35 @@ Automatically replace hardcoded strings with `t()` calls:
 ```bash
 # Full rewrite mode
 npx rn-localize scan --src ./src --rewrite --output ./locales/en.json
-
-# Custom i18n import
-npx rn-localize scan --rewrite --import "import i18n from '@/utils/i18n'"
 ```
+
+**⚠️ IMPORTANT: You must create an `i18n.ts` file!**
+When using `--rewrite`, the CLI automatically calculates the relative path from every modified file to the root of your `--src` folder and injects an import statement for an `i18n` module (e.g. `import { t } from '../../i18n';`). 
+
+You MUST create an `i18n.ts` or `i18n.js` file at the root of your scanned directory (`./src/i18n.ts`) that exports a `t` function:
+
+```typescript
+// src/i18n.ts
+import en from '../locales/en.json';
+
+export function t(key: string): string {
+  const parts = key.split('.');
+  let current: any = en;
+  for (const part of parts) {
+    if (current && typeof current === 'object' && part in current) {
+      current = current[part];
+    } else {
+      return key;
+    }
+  }
+  return typeof current === 'string' ? current : key;
+}
+```
+
+```bash
+# Custom i18n import
+# Note: If you provide a custom --import, dynamic relative path injection is bypassed.
+npx rn-localize scan --rewrite --import "import { t } from '@/utils/i18n';"
 
 ### All Options
 

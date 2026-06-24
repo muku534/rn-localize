@@ -7,21 +7,21 @@ import { ExtractedString, ScanOptions } from './types';
 import { generateKey, KeyCollisionTracker } from './keyGenerator';
 
 /**
- * Props that should never be extracted for localization.
- * These are structural/functional props, not user-facing text.
+ * Props that are allowed to be extracted for localization.
  */
-const SKIP_PROPS = new Set([
-  'testID',
-  'key',
-  'ref',
-  'style',
-  'className',
-  'id',
-  'source',
-  'name',
-  'type',
-  'pointerEvents',
-  'collapsable',
+const ALLOWED_PROPS = new Set([
+  'placeholder',
+  'title',
+  'label',
+  'text',
+  'subtitle',
+  'message',
+  'description',
+  'header',
+  'footer',
+  'caption',
+  'tooltip',
+  'alt'
 ]);
 
 /**
@@ -120,6 +120,32 @@ export function parseFile(
     return { extracted: [], skippedCount: 0 };
   }
 
+  // Helper to extract a single string value safely
+  const extractValue = (
+    raw: string,
+    loc: t.SourceLocation | null | undefined,
+    type: ExtractedString['type'],
+    propName?: string
+  ) => {
+    if (!loc) return;
+    if (shouldSkipString(raw, options.minLength)) return;
+
+    const key = collisionTracker.resolve(
+      generateKey(raw, filePath, options.prefix),
+      raw
+    );
+
+    extracted.push({
+      raw,
+      key,
+      filePath,
+      line: loc.start.line,
+      column: loc.start.column,
+      type,
+      propName,
+    });
+  };
+
   traverse(ast, {
     /**
      * A) JSX text nodes — <Text>Welcome back</Text>
@@ -130,25 +156,11 @@ export function parseFile(
       if (!value || /^\s*$/.test(value)) return;
       if (isInsideStyleSheet(path)) return;
 
-      if (shouldSkipString(value, options.minLength)) return;
-
-      const key = collisionTracker.resolve(
-        generateKey(value, filePath, options.prefix),
-        value
-      );
-
-      extracted.push({
-        raw: value,
-        key,
-        filePath,
-        line: path.node.loc?.start.line ?? 0,
-        column: path.node.loc?.start.column ?? 0,
-        type: 'jsx_text',
-      });
+      extractValue(value, path.node.loc, 'jsx_text');
     },
 
     /**
-     * B) String literal props on JSX elements
+     * B) String literal props on JSX elements (Allowed props only!)
      *    <TextInput placeholder="Search here..." />
      */
     JSXAttribute(path: NodePath<t.JSXAttribute>) {
@@ -157,108 +169,87 @@ export function parseFile(
         : undefined;
 
       if (!propName) return;
-      if (SKIP_PROPS.has(propName)) return;
+      if (!ALLOWED_PROPS.has(propName)) return;
 
       const value = path.node.value;
       if (!t.isStringLiteral(value)) return;
 
-      const raw = value.value;
-      if (shouldSkipString(raw, options.minLength)) return;
       if (isInsideStyleSheet(path)) return;
 
-      const key = collisionTracker.resolve(
-        generateKey(raw, filePath, options.prefix),
-        raw
-      );
-
-      extracted.push({
-        raw,
-        key,
-        filePath,
-        line: value.loc?.start.line ?? 0,
-        column: value.loc?.start.column ?? 0,
-        type: 'string_prop',
-        propName,
-      });
+      extractValue(value.value, value.loc, 'string_prop', propName);
     },
 
     /**
-     * C) Static template literals (zero expressions)
-     *    const msg = `Welcome to the app`
+     * C) Safely target specific JS function calls like Alert.alert or Toast.show
      */
-    TemplateLiteral(path: NodePath<t.TemplateLiteral>) {
-      // Skip template literals with expressions
-      if (path.node.expressions.length > 0) return;
+    CallExpression(path: NodePath<t.CallExpression>) {
+      const callee = path.node.callee;
 
-      // Must have exactly one quasi
-      if (path.node.quasis.length !== 1) return;
-
-      const raw = path.node.quasis[0].value.cooked ?? path.node.quasis[0].value.raw;
-      if (shouldSkipString(raw, options.minLength)) return;
-      if (isInsideStyleSheet(path)) return;
-      if (isInsideTCall(path)) {
-        skippedCount++;
-        return;
-      }
-
-      const key = collisionTracker.resolve(
-        generateKey(raw, filePath, options.prefix),
-        raw
-      );
-
-      extracted.push({
-        raw,
-        key,
-        filePath,
-        line: path.node.loc?.start.line ?? 0,
-        column: path.node.loc?.start.column ?? 0,
-        type: 'template_literal',
-      });
-    },
-
-    StringLiteral(path: NodePath<t.StringLiteral>) {
-      if (isInsideTCall(path)) {
-        skippedCount++;
-        return;
-      }
-
-      // Skip if parent is JSXAttribute (handled by JSXAttribute visitor)
-      if (path.parentPath.isJSXAttribute()) return;
-
-      // Skip import/export declarations
-      if (path.parentPath.isImportDeclaration() || path.parentPath.isExportDeclaration()) return;
-      
-      // Skip ObjectMethod keys
-      if (path.parentPath.isObjectMethod() && path.parentPath.node.key === path.node) return;
-
-      // Skip object properties where the string is the KEY
-      if (path.parentPath.isObjectProperty() && path.parentPath.node.key === path.node) return;
-
-      // Skip require() calls
+      // 1. Alert.alert("Title", "Message")
       if (
-        path.parentPath.isCallExpression() &&
-        t.isIdentifier(path.parentPath.node.callee) &&
-        path.parentPath.node.callee.name === 'require'
-      ) return;
+        t.isMemberExpression(callee) &&
+        t.isIdentifier(callee.object) &&
+        callee.object.name === 'Alert' &&
+        t.isIdentifier(callee.property) &&
+        callee.property.name === 'alert'
+      ) {
+        const args = path.node.arguments;
+        for (let i = 0; i < Math.min(2, args.length); i++) {
+          const arg = args[i];
+          if (t.isStringLiteral(arg)) {
+            if (isInsideTCall(path.get(`arguments.${i}`) as NodePath)) {
+              skippedCount++;
+            } else {
+              extractValue(arg.value, arg.loc, 'string_literal');
+            }
+          } else if (t.isTemplateLiteral(arg) && arg.expressions.length === 0 && arg.quasis.length === 1) {
+            if (isInsideTCall(path.get(`arguments.${i}`) as NodePath)) {
+              skippedCount++;
+            } else {
+              const raw = arg.quasis[0].value.cooked ?? arg.quasis[0].value.raw;
+              extractValue(raw, arg.loc, 'template_literal');
+            }
+          }
+        }
+      }
 
-      const raw = path.node.value;
-      if (shouldSkipString(raw, options.minLength)) return;
-      if (isInsideStyleSheet(path)) return;
-
-      const key = collisionTracker.resolve(
-        generateKey(raw, filePath, options.prefix),
-        raw
-      );
-
-      extracted.push({
-        raw,
-        key,
-        filePath,
-        line: path.node.loc?.start.line ?? 0,
-        column: path.node.loc?.start.column ?? 0,
-        type: 'string_literal',
-      });
-    },
+      // 2. Toast.show({ text1: "Hello", text2: "World" })
+      if (
+        t.isMemberExpression(callee) &&
+        t.isIdentifier(callee.object) &&
+        callee.object.name === 'Toast' &&
+        t.isIdentifier(callee.property) &&
+        callee.property.name === 'show'
+      ) {
+        const args = path.node.arguments;
+        if (args.length > 0 && t.isObjectExpression(args[0])) {
+          const objPath = path.get('arguments.0') as NodePath<t.ObjectExpression>;
+          for (let i = 0; i < args[0].properties.length; i++) {
+            const prop = args[0].properties[i];
+            if (
+              t.isObjectProperty(prop) &&
+              t.isIdentifier(prop.key) &&
+              (prop.key.name === 'text1' || prop.key.name === 'text2')
+            ) {
+              if (t.isStringLiteral(prop.value)) {
+                if (isInsideTCall(objPath.get(`properties.${i}.value`) as NodePath)) {
+                  skippedCount++;
+                } else {
+                  extractValue(prop.value.value, prop.value.loc, 'string_literal');
+                }
+              } else if (t.isTemplateLiteral(prop.value) && prop.value.expressions.length === 0 && prop.value.quasis.length === 1) {
+                if (isInsideTCall(objPath.get(`properties.${i}.value`) as NodePath)) {
+                  skippedCount++;
+                } else {
+                  const raw = prop.value.quasis[0].value.cooked ?? prop.value.quasis[0].value.raw;
+                  extractValue(raw, prop.value.loc, 'template_literal');
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   });
 
   return { extracted, skippedCount };
