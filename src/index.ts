@@ -26,7 +26,7 @@ program
   .option(
     '--import <statement>',
     'Import line to inject when rewriting',
-    "import { t } from '../i18n'"
+    "import { t } from './i18n'"
   )
   .option(
     '--ignore <patterns>',

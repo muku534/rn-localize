@@ -1,18 +1,52 @@
 {
   "name": "rn-localize",
-  "version": "1.0.0",
-  "description": "Auto-extract hardcoded strings from React Native projects for localization",
+  "version": "1.0.1",
+  "description": "Auto-extract hardcoded strings from React Native projects for localization. A zero-config CLI that parses your AST, generates translation keys, and rewrites your source code.",
   "bin": {
     "rn-localize": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/muku534/rn-localize"
+  },
+  "homepage": "https://github.com/muku534/rn-localize#readme",
+  "author": {
+    "name": "Mukesh Prajapati",
+    "url": "https://github.com/muku534"
+  },
+  "license": "MIT",
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["react-native", "i18n", "localization", "l10n", "cli", "codemods"],
+  "keywords": [
+    "react-native",
+    "react native",
+    "i18n",
+    "internationalization",
+    "localization",
+    "l10n",
+    "translation",
+    "cli",
+    "codemods",
+    "ast",
+    "parser",
+    "react-native-localization",
+    "rn-localize",
+    "extract-strings",
+    "i18next",
+    "react-i18next",
+    "react-native-localize",
+    "automation",
+    "developer-tools",
+    "ios",
+    "android",
+    "typescript",
+    "babel"
+  ],
   "dependencies": {
     "@babel/generator": "^7.23.0",
     "@babel/parser": "^7.23.0",

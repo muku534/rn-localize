@@ -193,15 +193,30 @@ function injectImport(
   filePath: string,
   options: ScanOptions
 ): void {
-  // Parse the import statement to get an AST node
-  const importStatement = options.importStatement;
-
-  let importAst: ReturnType<typeof babelParser.parse>;
   try {
-    importAst = babelParser.parse(importStatement + ';', {
+    let importStr = options.importStatement;
+    const match = importStr.match(/(from\s+['"])([^'"]+)(['"])/);
+    
+    if (match && match[2].startsWith('.')) {
+      const baseTarget = path.resolve(process.cwd(), match[2]);
+      const fileDir = path.dirname(path.resolve(filePath));
+      
+      let relPath = path.relative(fileDir, baseTarget);
+      if (!relPath.startsWith('.')) {
+        relPath = './' + relPath;
+      }
+      importStr = importStr.replace(match[0], `${match[1]}${relPath}${match[3]}`);
+    }
+
+    const importAst = babelParser.parse(importStr, {
       sourceType: 'module',
       plugins: ['typescript'],
     });
+
+    const importNode = importAst.program.body[0];
+    if (t.isImportDeclaration(importNode)) {
+      insertImportNode(ast, importNode);
+    }
   } catch {
     // Fallback: build the import node manually
     const importNode = t.importDeclaration(
@@ -210,11 +225,6 @@ function injectImport(
     );
     insertImportNode(ast, importNode);
     return;
-  }
-
-  const importNode = importAst.program.body[0];
-  if (t.isImportDeclaration(importNode)) {
-    insertImportNode(ast, importNode);
   }
 }
 
